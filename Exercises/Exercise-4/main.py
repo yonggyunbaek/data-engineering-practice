@@ -36,17 +36,26 @@ def main():
     
     csv_filename = 'data.csv'
     
+    fieldnames = set()
+    
+    for json_file in json_files:
+        with open(json_file, 'r') as file:
+            data = json.load(file)
+            flattened_data = json_normalize(data).to_dict(orient='records')[0]
+            
+            fieldnames.update(flattened_data.keys())
+            
+    
     with open(csv_filename, 'w', newline='') as csvfile:
-        fieldnames = set()
-        
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
-        # CSV 파일 헤더 쓰기
+        # Write the header to the CSV file.
         writer.writeheader()
         
+        # Now write the data to the CSV file.
         for json_file in json_files:
             save_csv(json_file, writer)
             
-    
+            
 if __name__ == "__main__":
     main()
