@@ -3,7 +3,7 @@ from pyspark.sql import SparkSession, Row
 import pyspark.sql.functions as F
 import zipfile
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, split, hash
+from pyspark.sql.functions import col, split, hash, lit, regexp_extract, when
 from pyspark.sql.types import TimestampType
 from pyspark.sql.window import Window
 from pyspark.sql.functions import rank
@@ -40,12 +40,14 @@ def make_df(spark, zip_file_path, select_file):
 
 # 1. Add the file name as a column to the DataFrame
 def add_source_file_column(df, file_name):
-    df_with_source_file = df.withColumn("source_file", col(lit(file_name)))
+    df_with_source_file = df.withColumn("source_file", lit(file_name))
     return df_with_source_file
 
 # 2. Extract the date from the source_file column and cast it to timestamp
+# hard-drive-2022-01-01-failures.csv
 def extract_and_cast_date(df):
-    df_with_date = df.withColumn("file_date", col("source_file").substr(-10, 10).cast(TimestampType()))
+    date_pattern = r'(\d{4}-\d{2}-\d{2})' 
+    df_with_date = df.withColumn("file_date", regexp_extract(df["source_file"], date_pattern, 0))
     return df_with_date
 
 # 3. Extract the brand from the model column
@@ -54,6 +56,9 @@ def extract_brand(df):
     return df_with_brand
 
 # 4. Create storage ranking based on capacity_bytes
+# ------------------------------------------------------ 
+# | capacity_bytes | model | 
+# ------------------------------------------------------
 def create_storage_ranking(df):
     window_spec = Window.orderBy(col("capacity_bytes").desc())
     df_with_ranking = df.withColumn("storage_ranking", rank().over(window_spec))
@@ -74,11 +79,10 @@ def main():
 
     df = make_df(spark, zip_file_path, file_name)
     df = add_source_file_column(df, file_name)
-    df['source_file'].show()
-
-
-
-
+    df = extract_and_cast_date(df)
+    df = extract_brand(df)
+    df = create_storage_ranking(df)
+    df.select("model","capacity_bytes", "storage_ranking").show()
 
 
 if __name__ == "__main__":
